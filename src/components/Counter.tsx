@@ -1,8 +1,13 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useCounterContext } from "./counterContext";
 
 export const Counter: React.FC = () => {
-  const { counter, increase, decrease } = useCounterContext() ?? {};
+  const [counter, setCounter] = useState(0);
+  const { subscribe, increase, decrease } = useCounterContext() ?? {};
+
+  useEffect(() => {
+    if (subscribe) subscribe(setCounter);
+  }, []);
 
   console.log("Counter rendered!");
 
