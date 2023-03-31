@@ -3,10 +3,9 @@ import React, {
   PropsWithChildren,
   useContext,
   useRef,
-  useState,
+  useEffect,
 } from "react";
-
-type CounterUpdater = (counter: number) => void;
+import type { CounterUpdater } from "../types";
 
 type CounterState = {
   subscribe: (callback: CounterUpdater) => void;
@@ -18,8 +17,16 @@ const CounterContext = createContext<CounterState | null>(null);
 
 export const useCounterContext = () => useContext(CounterContext);
 
+export const useCounterContextSubscription = (callback: CounterUpdater) => {
+  const { subscribe } = useCounterContext() ?? {};
+
+  useEffect(() => {
+    return subscribe?.(callback); // Returns the unsub function.
+  }, [subscribe, callback]);
+};
+
 export const CounterProvider: React.FC<PropsWithChildren> = ({ children }) => {
-  const subscriberCallbacks = useRef<Array<(counter: number) => void>>([]);
+  const subscriberCallbacks = useRef<Set<(counter: number) => void>>(new Set());
   const counter = useRef(0);
 
   const publish = (counter: number) => {
@@ -41,12 +48,22 @@ export const CounterProvider: React.FC<PropsWithChildren> = ({ children }) => {
   };
 
   const addSubscriber = (callback: CounterUpdater) => {
-    subscriberCallbacks.current = [...subscriberCallbacks.current, callback];
+    subscriberCallbacks.current.add(callback);
+
+    return () => removeSubscriber(callback);
+  };
+
+  const removeSubscriber = (callback: CounterUpdater) => {
+    subscriberCallbacks.current.delete(callback);
   };
 
   return (
     <CounterContext.Provider
-      value={{ subscribe: addSubscriber, increase, decrease }}
+      value={{
+        subscribe: addSubscriber,
+        increase,
+        decrease,
+      }}
     >
       {children}
     </CounterContext.Provider>
