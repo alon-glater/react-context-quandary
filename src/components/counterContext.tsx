@@ -4,56 +4,105 @@ import React, {
   useContext,
   useRef,
   useEffect,
+  useState,
 } from "react";
-import type { CounterUpdater } from "../types";
+import type { CounterGroupUpdater, CounterGroup } from "../types";
 
 type CounterState = {
-  subscribe: (callback: CounterUpdater) => void;
-  increase: () => void;
-  decrease: () => void;
+  subscribe: (callback: CounterGroupUpdater) => void;
+  increase: { counterOne: () => void; counterTwo: () => void };
+  decrease: { counterOne: () => void; counterTwo: () => void };
 };
 
 const CounterContext = createContext<CounterState | null>(null);
 
 export const useCounterContext = () => useContext(CounterContext);
 
-export const useCounterContextSubscription = (callback: CounterUpdater) => {
+export const useCounterContextSubscription = <T,>(
+  selector: (counterGroup: CounterGroup) => T
+): T | undefined => {
+  const [state, setState] = useState<T | undefined>();
   const { subscribe } = useCounterContext() ?? {};
+
+  const callback = (counterGroup: CounterGroup) => {
+    setState(selector(counterGroup));
+  };
 
   useEffect(() => {
     return subscribe?.(callback); // Returns the unsub function.
   }, [subscribe, callback]);
+
+  return state;
 };
 
 export const CounterProvider: React.FC<PropsWithChildren> = ({ children }) => {
-  const subscriberCallbacks = useRef<Set<(counter: number) => void>>(new Set());
-  const counter = useRef(0);
+  const subscriberCallbacks = useRef<Set<CounterGroupUpdater>>(new Set());
+  const counterGroup = useRef<CounterGroup>({
+    counterOne: 0,
+    counterTwo: 0,
+  });
 
-  const publish = (counter: number) => {
+  const publish = (counterGroup: CounterGroup) => {
     subscriberCallbacks.current.forEach((callback) => {
-      callback(counter);
+      callback(counterGroup);
     });
   };
 
-  const increase = () => {
-    counter.current++;
+  const increaseCounterOne = () => {
+    counterGroup.current = {
+      ...counterGroup.current,
+      counterOne: counterGroup.current.counterOne + 1,
+    };
 
-    publish(counter.current);
+    publish(counterGroup.current);
   };
 
-  const decrease = () => {
-    counter.current--;
+  const increaseCounterTwo = () => {
+    counterGroup.current = {
+      ...counterGroup.current,
+      counterTwo: counterGroup.current.counterTwo + 1,
+    };
 
-    publish(counter.current);
+    publish(counterGroup.current);
   };
 
-  const addSubscriber = (callback: CounterUpdater) => {
+  const decreaseCounterOne = () => {
+    counterGroup.current = {
+      ...counterGroup.current,
+      counterOne: counterGroup.current.counterOne - 1,
+    };
+
+    publish(counterGroup.current);
+  };
+
+  const decreaseCounterTwo = () => {
+    counterGroup.current = {
+      ...counterGroup.current,
+      counterTwo: counterGroup.current.counterTwo - 1,
+    };
+
+    publish(counterGroup.current);
+  };
+
+  const increase = {
+    counterOne: increaseCounterOne,
+    counterTwo: increaseCounterTwo,
+  };
+
+  const decrease = {
+    counterOne: decreaseCounterOne,
+    counterTwo: decreaseCounterTwo,
+  };
+
+  const addSubscriber = (callback: CounterGroupUpdater) => {
     subscriberCallbacks.current.add(callback);
+
+    callback(counterGroup.current); // Publish the latest state to the new sub.
 
     return () => removeSubscriber(callback);
   };
 
-  const removeSubscriber = (callback: CounterUpdater) => {
+  const removeSubscriber = (callback: CounterGroupUpdater) => {
     subscriberCallbacks.current.delete(callback);
   };
 
